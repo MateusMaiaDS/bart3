@@ -202,16 +202,6 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
-// rand_unif
-double rand_unif();
-RcppExport SEXP _bart3_rand_unif() {
-BEGIN_RCPP
-    Rcpp::RObject rcpp_result_gen;
-    Rcpp::RNGScope rcpp_rngScope_gen;
-    rcpp_result_gen = Rcpp::wrap(rand_unif());
-    return rcpp_result_gen;
-END_RCPP
-}
 
 static const R_CallMethodDef CallEntries[] = {
     {"_bart3_gamma_pdf", (DL_FUNC) &_bart3_gamma_pdf, 3},
@@ -229,7 +219,6 @@ static const R_CallMethodDef CallEntries[] = {
     {"_bart3_rMVN2", (DL_FUNC) &_bart3_rMVN2, 2},
     {"_bart3_rMVNslow", (DL_FUNC) &_bart3_rMVNslow, 2},
     {"_bart3_matrix_mat", (DL_FUNC) &_bart3_matrix_mat, 1},
-    {"_bart3_rand_unif", (DL_FUNC) &_bart3_rand_unif, 0},
     {NULL, NULL, 0}
 };
 

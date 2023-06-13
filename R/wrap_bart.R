@@ -76,10 +76,10 @@ bart2 <- function(x_train,
 
 
      # Normalising all the columns
-     # for(i in 1:ncol(x_train)){
-     #         x_train_scale[,i] <- normalize_covariates_bart(y = x_train_scale[,i],a = x_min[i], b = x_max[i])
-     #         x_test_scale[,i] <- normalize_covariates_bart(y = x_test_scale[,i],a = x_min[i], b = x_max[i])
-     # }
+     for(i in 1:ncol(x_train)){
+             x_train_scale[,i] <- normalize_covariates_bart(y = x_train_scale[,i],a = x_min[i], b = x_max[i])
+             x_test_scale[,i] <- normalize_covariates_bart(y = x_test_scale[,i],a = x_min[i], b = x_max[i])
+     }
 
      aux_t <- bartModelMatrix(X = x_train_scale,numcut = numcut)
      print(dim(aux_t$xinfo))

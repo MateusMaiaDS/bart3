@@ -61,7 +61,3 @@ matrix_mat <- function(array) {
     .Call('_bart3_matrix_mat', PACKAGE = 'bart3', array)
 }
 
-rand_unif <- function() {
-    .Call('_bart3_rand_unif', PACKAGE = 'bart3')
-}
-

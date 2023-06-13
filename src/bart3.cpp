@@ -181,7 +181,7 @@ Node::Node(modelParam &data){
         test_index = arma::vec(data.x_test.n_rows,arma::fill::ones)*(-1) ;
 
         var_split = -1;
-        var_split_rule = -1;
+        var_split_rule = -1.0;
         lower = 0.0;
         upper = 1.0;
         mu = 0.0;
@@ -190,19 +190,7 @@ Node::Node(modelParam &data){
         log_likelihood = 0.0;
         depth = 0;
 
-        // Setting the index of numcut, the minimum and the maximum ones;
-        min_numcut = arma::vec(data.x_train.n_cols,arma::fill::zeros);
-        max_numcut = arma::vec(data.x_train.n_cols, arma::fill::ones)*(data.xcut.n_rows-1);
 
-        x_min = arma::vec(data.x_train.n_cols);
-        x_max = arma::vec(data.x_train.n_cols);
-
-        // Storing the minimum and maximum for each j
-        for(int j = 0; j<data.x_train.n_cols ; j ++){
-                x_min(j) = min(data.x_train.col(j));
-                // cout << "Min value of x_min" << x_min(j) << endl;
-                x_max(j) = max(data.x_train.col(j));
-        }
 }
 
 Node::~Node() {
@@ -247,7 +235,7 @@ void Node::addingLeaves(modelParam& data){
      left -> right = left;
      left -> parent = this;
      left -> var_split = 0;
-     left -> var_split_rule = -1;
+     left -> var_split_rule = -1.0;
      left -> lower = 0.0;
      left -> upper = 1.0;
      left -> mu = 0.0;
@@ -256,10 +244,6 @@ void Node::addingLeaves(modelParam& data){
      left -> depth = depth+1;
      left -> train_index = arma::vec(data.x_train.n_rows,arma::fill::ones)*(-1);
      left -> test_index = arma::vec(data.x_test.n_rows,arma::fill::ones)*(-1);
-     left -> min_numcut = this->min_numcut;
-     left -> max_numcut = this->max_numcut;
-     left -> x_max = this->x_max;
-     left -> x_min = this->x_min;
 
      right -> isRoot = false;
      right -> isLeaf = true;
@@ -267,7 +251,7 @@ void Node::addingLeaves(modelParam& data){
      right -> right = right;
      right -> parent = this;
      right -> var_split = 0;
-     right -> var_split_rule = -1;
+     right -> var_split_rule = -1.0;
      right -> lower = 0.0;
      right -> upper = 1.0;
      right -> mu = 0.0;
@@ -276,10 +260,7 @@ void Node::addingLeaves(modelParam& data){
      right -> depth = depth+1;
      right -> train_index = arma::vec(data.x_train.n_rows,arma::fill::ones)*(-1);
      right -> test_index = arma::vec(data.x_test.n_rows,arma::fill::ones)*(-1);
-     right -> min_numcut = this->min_numcut;
-     right -> max_numcut = this->max_numcut;
-     right -> x_max = this->x_max;
-     right -> x_min = this->x_min;
+
 
      return;
 
@@ -294,13 +275,6 @@ bool Node::isRight(){
         return (this == this->parent->right);
 }
 
-// Sample var
-void Node::sampleSplitVar(modelParam &data){
-
-          // Sampling one index from 0:(p-1)
-          var_split = arma::randi(arma::distr_param(0,(data.x_train.n_cols-1)));
-
-}
 // This functions will get and update the current limits for this current variable
 void Node::getLimits(){
 
@@ -451,14 +425,8 @@ void grow(Node* tree, modelParam &data, arma::vec &curr_res){
         Node* g_node = sample_node(t_nodes);
 
         // Store all old quantities that will be used or not
-        double old_lower = g_node->lower;
-        double old_upper = g_node->upper;
         int old_var_split = g_node->var_split;
         int old_var_split_rule = g_node->var_split_rule;
-        arma::vec old_x_min = g_node->x_min;
-        arma::vec old_x_max = g_node->x_max;
-        arma::vec old_mincut = g_node->min_numcut;
-        arma::vec old_maxcut = g_node->max_numcut;
 
         // // Calculating the whole likelihood fo the tree
         for(int i = 0; i < t_nodes.size(); i++){
@@ -473,48 +441,54 @@ void grow(Node* tree, modelParam &data, arma::vec &curr_res){
         // Adding the leaves
         g_node->addingLeaves(data);
 
+        bool no_valid_node = false;
+        int p_try = 0;
 
-        // Selecting the var
-        g_node-> sampleSplitVar(data);
+        // Trying to find a cutpoint
+        arma::vec split_candidates = arma::shuffle(arma::regspace(0,1,data.x_train.n_cols-1));
+        Rcpp::NumericVector valid_cutpoint;
 
-        // Valid split found
-        int valid_split_min = 0;
-        int valid_split_max = 0;
-        // Getting the minimum numcut
-        for(int xcut_iter = g_node->min_numcut(g_node->var_split);
-                xcut_iter < g_node->max_numcut(g_node->var_split);
-                xcut_iter++){
+        while(!no_valid_node){
+                g_node->var_split = split_candidates(p_try);
 
-                if(g_node->x_min(g_node->var_split)<data.xcut(xcut_iter,g_node->var_split)){
-                        g_node->min_numcut(g_node->var_split) = xcut_iter;
-                        valid_split_min = 1;
-                        break;
+                Rcpp::NumericVector var_split_range;
+
+                // Getting the maximum and the minimum;
+                for(int i = 0; i < g_node->n_leaf; i++){
+                        var_split_range.push_back(data.x_train(g_node->train_index[i],g_node->var_split));
+                }
+
+                // Getting the minimum and the maximum;
+                double max_rule = max(var_split_range);
+                double min_rule = min(var_split_range);
+
+                for(int cut = 0; cut < data.xcut.n_rows; cut++ ){
+                        if((data.xcut(cut,g_node->var_split)>min_rule) & (data.xcut(cut,g_node->var_split)<max_rule)){
+                                valid_cutpoint.push_back(data.xcut(cut,g_node->var_split));
+                        }
+                }
+
+                if(valid_cutpoint.size()==0){
+                        p_try++;
+                        if(p_try>=data.x_train.n_cols){
+                                no_valid_node = true;
+                        };
+                } else {
+                        break; // Go out from the while
                 }
         }
 
-        // Getting the maximum numcut
-        for(int xcut_iter = g_node->max_numcut(g_node->var_split);
-            xcut_iter >= g_node->min_numcut(g_node->var_split);
-            xcut_iter--){
+        if(no_valid_node){
+        // Returning to the old values
+                g_node->var_split = old_var_split;
+                g_node->var_split_rule = old_var_split_rule;
 
-                if((g_node->x_max(g_node->var_split)>data.xcut(xcut_iter,g_node->var_split))){
-                        g_node->max_numcut(g_node->var_split) = xcut_iter; // I'm not so sure about this -1
-                        valid_split_max = 1;
-                        break;
-                }
-        }
-
-        if((valid_split_max==0) || (valid_split_min==0)){
-                Rcpp::Rcout << "Var split is: " << g_node->var_split << " the max and min numcuts are: " << g_node->max_numcut(g_node->var_split) << " and: " << g_node->min_numcut(g_node->var_split)<< endl;
-                Rcpp::Rcout << "The max and min values are: " << g_node->x_max(g_node->var_split) << " and: " << g_node->x_min(g_node->var_split)<< endl;
-                Rcpp::Rcout << "The min split " << valid_split_min << endl;
-                Rcpp::Rcout << "The max split " << valid_split_max << endl;
-
-                Rcpp::stop("No valid split found. Select another variable");
+                g_node->deletingLeaves();
+                return;
         }
 
         // Selecting a rule (here I'm actually selecting the var split rule);
-        g_node->var_split_rule = arma::randi(arma::distr_param(g_node->min_numcut(g_node->var_split),g_node->max_numcut(g_node->var_split)));
+        g_node->var_split_rule = valid_cutpoint[arma::randi(arma::distr_param(0,valid_cutpoint.size()))];
         // cout << "The current var split rule is: " << g_node->var_split_rule << endl;
 
         // Create an aux for the left and right index
@@ -535,7 +509,7 @@ void grow(Node* tree, modelParam &data, arma::vec &curr_res){
                         g_node->right->n_leaf = train_right_counter;
                         break;
                 }
-                if(data.x_train(g_node->train_index[i],g_node->var_split)<=data.xcut(g_node->var_split_rule,g_node->var_split)){
+                if(data.x_train(g_node->train_index[i],g_node->var_split)<=g_node->var_split_rule){
                         g_node->left->train_index[train_left_counter] = g_node->train_index[i];
                         x_new_left.row(train_left_counter) = data.x_train.row(g_node->train_index[i]);
                         train_left_counter++;
@@ -556,7 +530,7 @@ void grow(Node* tree, modelParam &data, arma::vec &curr_res){
                         g_node->right->n_leaf_test = test_right_counter;
                         break;
                 }
-                if(data.x_test(g_node->test_index[i],g_node->var_split)<=data.xcut(g_node->var_split_rule,g_node->var_split)){
+                if(data.x_test(g_node->test_index[i],g_node->var_split)<=g_node->var_split_rule){
                         g_node->left->test_index[test_left_counter] = g_node->test_index[i];
                         test_left_counter++;
                 } else {
@@ -580,27 +554,12 @@ void grow(Node* tree, modelParam &data, arma::vec &curr_res){
                 // Returning to the old values
                 g_node->var_split = old_var_split;
                 g_node->var_split_rule = old_var_split_rule;
-                g_node->lower = old_lower;
-                g_node->upper = old_upper;
-                g_node->x_max = old_x_max;
-                g_node->x_min = old_x_min;
-                g_node->min_numcut = old_mincut;
-                g_node->max_numcut = old_maxcut;
+
 
                 g_node->deletingLeaves();
                 return;
         }
 
-
-        // Storing the minimum and the maximum value for each variable
-        for(int col = 0; col < data.x_train.n_cols; col++){
-                arma::vec col_sub_left = x_new_left.col(col);
-                arma::vec col_sub_right = x_new_right.col(col);
-                g_node->left->x_min(col) = col_sub_left.subvec(0,g_node->left->n_leaf-1).min();
-                g_node->left->x_max(col) = col_sub_left.subvec(0,g_node->left->n_leaf-1).max();
-                g_node->right->x_min(col) = col_sub_right.subvec(0,g_node->right->n_leaf-1).min();
-                g_node->right->x_max(col) = col_sub_right.subvec(0,g_node->right->n_leaf-1).max();
-        }
 
 
 
@@ -640,21 +599,11 @@ void grow(Node* tree, modelParam &data, arma::vec &curr_res){
         // Keeping the new tree or not
         if(arma::randu(arma::distr_param(0.0,1.0)) < acceptance){
                 // Do nothing just keep the new tree
-                g_node->left->max_numcut(g_node->var_split) = g_node->var_split_rule;
-                g_node->right->min_numcut(g_node->var_split) = g_node->var_split_rule;
                 data.move_acceptance(0)++;
         } else {
                 // Returning to the old values
                 g_node->var_split = old_var_split;
                 g_node->var_split_rule = old_var_split_rule;
-                g_node->lower = old_lower;
-                g_node->upper = old_upper;
-                g_node->lower = old_lower;
-                g_node->upper = old_upper;
-                g_node->x_max = old_x_max;
-                g_node->x_min = old_x_min;
-                g_node->min_numcut = old_mincut;
-                g_node->max_numcut = old_maxcut;
 
                 g_node->deletingLeaves();
         }
@@ -757,6 +706,7 @@ void change(Node* tree, modelParam &data, arma::vec &curr_res){
                 t_nodes[i]->updateResiduals(data, curr_res);
         }
 
+        // Calculating the loglikelihood of the old nodes
         c_node->left->nodeLogLike(data,curr_res);
         c_node->right->nodeLogLike(data,curr_res);
 
@@ -798,12 +748,53 @@ void change(Node* tree, modelParam &data, arma::vec &curr_res){
         int old_lower = c_node->lower;
         int old_upper = c_node->upper;
 
-        // Selecting the var
-        c_node-> sampleSplitVar(data);
+        // Choosing only valid cutpoints;
+        bool no_valid_node = false;
+        int p_try = 0;
 
-        // Selecting a rule
-        c_node -> var_split_rule = arma::randi(arma::distr_param(c_node->min_numcut(c_node->var_split),c_node->max_numcut(c_node->var_split)));
-        // c_node -> var_split_rule = 0.0;
+        // Trying to find a cutpoint
+        arma::vec split_candidates = arma::shuffle(arma::regspace(0,1,data.x_train.n_cols-1));
+        Rcpp::NumericVector valid_cutpoint;
+
+        while(!no_valid_node){
+                c_node->var_split = split_candidates(p_try);
+
+                Rcpp::NumericVector var_split_range;
+
+                // Getting the maximum and the minimum;
+                for(int i = 0; i < c_node->n_leaf; i++){
+                        var_split_range.push_back(data.x_train(c_node->train_index[i],c_node->var_split));
+                }
+
+                // Getting the minimum and the maximum;
+                double max_rule = max(var_split_range);
+                double min_rule = min(var_split_range);
+
+                for(int cut = 0; cut < data.xcut.n_rows; cut++ ){
+                        if((data.xcut(cut,c_node->var_split)>min_rule) & (data.xcut(cut,c_node->var_split)<max_rule)){
+                                valid_cutpoint.push_back(data.xcut(cut,c_node->var_split));
+                        }
+                }
+
+                if(valid_cutpoint.size()==0){
+                        p_try++;
+                        if(p_try>=data.x_train.n_cols){
+                                no_valid_node = true;
+                        };
+                } else {
+                        break; // Go out from the while
+                }
+        }
+
+        if(no_valid_node){
+                // Returning to the old values
+                c_node->var_split = old_var_split;
+                c_node->var_split_rule = old_var_split_rule;
+                return;
+        }
+
+        // Selecting a rule (here I'm actually selecting the var split rule);
+        c_node->var_split_rule = valid_cutpoint[arma::randi(arma::distr_param(0,valid_cutpoint.size()))];
 
         // Create an aux for the left and right index
         int train_left_counter = 0;
@@ -823,7 +814,7 @@ void change(Node* tree, modelParam &data, arma::vec &curr_res){
                 }
                 // cout << " Current train index " << c_node->train_index[i] << endl;
 
-                if(data.x_train(c_node->train_index[i],c_node->var_split)<=data.xcut(c_node->var_split_rule,c_node->var_split)){
+                if(data.x_train(c_node->train_index[i],c_node->var_split)<=c_node->var_split_rule){
                         c_node->left->train_index[train_left_counter] = c_node->train_index[i];
                         train_left_counter++;
                 } else {
@@ -843,7 +834,7 @@ void change(Node* tree, modelParam &data, arma::vec &curr_res){
                         break;
                 }
 
-                if(data.x_test(c_node->test_index[i],c_node->var_split)<=data.xcut(c_node->var_split_rule,c_node->var_split)){
+                if(data.x_test(c_node->test_index[i],c_node->var_split)<=c_node->var_split_rule){
                         c_node->left->test_index[test_left_counter] = c_node->test_index[i];
                         test_left_counter++;
                 } else {
@@ -906,8 +897,6 @@ void change(Node* tree, modelParam &data, arma::vec &curr_res){
         if(arma::randu(arma::distr_param(0.0,1.0))<acceptance){
                 // Keep all the trees
                 data.move_acceptance(3)++;
-                c_node->left->max_numcut(c_node->var_split) = c_node->var_split_rule;
-                c_node->right->min_numcut(c_node->var_split) = c_node->var_split_rule;
         } else {
 
                 // Returning to the previous values
@@ -1204,7 +1193,7 @@ Rcpp::List cppbart(arma::mat x_train,
                         } else {
                                 data.move_proposal(3)++;
                                 // cout << " Change error" << endl;
-                                // change(all_forest.trees[t], data, partial_residuals);
+                                change(all_forest.trees[t], data, partial_residuals);
                                 // std::cout << "Error after change" << endl;
                         }
 
@@ -1362,7 +1351,13 @@ arma::mat matrix_mat(arma::cube array){
 
 
 
+void test(int n){
 
-
+        arma::vec test = arma::shuffle(arma::regspace(0,1,n));
+        for(int i = 0; i< test.size(); i++){
+                cout << test(i)<< endl;
+        }
+        return;
+}
 
 

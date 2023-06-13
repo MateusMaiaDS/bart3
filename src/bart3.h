@@ -79,7 +79,7 @@ struct Node {
 
      // Branch parameters
      int var_split;
-     int var_split_rule;
+     double var_split_rule;
      double lower;
      double upper;
      double curr_weight; // indicates if the observation is within terminal node or not
@@ -97,19 +97,12 @@ struct Node {
      int n_leaf = 0;
      int n_leaf_test = 0;
 
-     // Creating a vector to store the min and the maximum numcut used
-     arma::vec min_numcut;
-     arma::vec max_numcut;
-     arma::vec x_min;
-     arma::vec x_max;
-
      // Creating the methods
      void addingLeaves(modelParam& data);
      void deletingLeaves();
      void Stump(modelParam& data);
      void updateWeight(const arma::mat X, int i);
      void getLimits(); // This function will get previous limit for the current var
-     void sampleSplitVar(modelParam& data);
      bool isLeft();
      bool isRight();
      void grow(Node* tree, modelParam &data, arma::vec &curr_res);
@@ -127,8 +120,4 @@ struct Node {
 // Creating a function to get the leaves
 void leaves(Node* x, std::vector<Node*>& leaves); // This function gonna modify by address the vector of leaves
 std::vector<Node*> leaves(Node*x);
-// [[Rcpp::export]]
-double rand_unif(){
-        double rand_d = std::rand();
-        return rand_d/RAND_MAX;
-};
+
