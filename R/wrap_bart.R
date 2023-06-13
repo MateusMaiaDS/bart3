@@ -1,5 +1,5 @@
 ## Bart
-#' @useDynLib bart2
+#' @useDynLib bart3
 #' @importFrom Rcpp sourceCpp
 #'
 # A fucction to retrive the number which are the factor columns
@@ -76,10 +76,14 @@ bart2 <- function(x_train,
 
 
      # Normalising all the columns
-     for(i in 1:ncol(x_train)){
-             x_train_scale[,i] <- normalize_covariates_bart(y = x_train_scale[,i],a = x_min[i], b = x_max[i])
-             x_test_scale[,i] <- normalize_covariates_bart(y = x_test_scale[,i],a = x_min[i], b = x_max[i])
-     }
+     # for(i in 1:ncol(x_train)){
+     #         x_train_scale[,i] <- normalize_covariates_bart(y = x_train_scale[,i],a = x_min[i], b = x_max[i])
+     #         x_test_scale[,i] <- normalize_covariates_bart(y = x_test_scale[,i],a = x_min[i], b = x_max[i])
+     # }
+
+     aux_t <- bartModelMatrix(X = x_train_scale,numcut = numcut)
+     print(dim(aux_t$xinfo))
+     print(dim(x_train_scale))
 
 
      # Creating the numcuts matrix of splitting rules
@@ -96,6 +100,11 @@ bart2 <- function(x_train,
      }
 
 
+     if(!(sum(t(aux_t$xinfo)==xcut_m)==(nrow(xcut_m)*ncol(xcut_m)))){
+             stop("Something wrong here")
+     }
+
+
      # Scaling the y
      min_y <- min(y)
      max_y <- max(y)
@@ -107,12 +116,12 @@ bart2 <- function(x_train,
      # Scaling "y"
      if(scale_bool){
         y_scale <- normalize_bart(y = y,a = min_y,b = max_y)
-        tau_mu <- (8*n_tree*(kappa^2))
+        tau_mu <- (4*n_tree*(kappa^2))
 
      } else {
         y_scale <- y
 
-        tau_mu <- (8*n_tree*(kappa^2))/((max_y-min_y)^2)
+        tau_mu <- (4*n_tree*(kappa^2))/((max_y-min_y)^2)
      }
 
      # Getting the naive sigma value
@@ -130,7 +139,7 @@ bart2 <- function(x_train,
      # Call the bart function
      # tau_init <- tau
      tau_init <- nsigma^(-2)
-     print(tau_init)
+
      mu_init <- mean(y_scale)
 
      # Creating the vector that stores all trees

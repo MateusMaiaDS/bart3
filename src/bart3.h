@@ -39,6 +39,7 @@ struct modelParam {
         modelParam(arma::mat x_train_,
                    arma::vec y_,
                    arma::mat x_test_,
+                   arma::mat x_cut_,
                    int n_tree_,
                    int node_min_size_,
                    double alpha_,
@@ -78,11 +79,12 @@ struct Node {
 
      // Branch parameters
      int var_split;
-     double var_split_rule;
+     int var_split_rule;
      double lower;
      double upper;
      double curr_weight; // indicates if the observation is within terminal node or not
      int depth = 0;
+
 
      // Leaf parameters
      double mu;
@@ -95,6 +97,11 @@ struct Node {
      int n_leaf = 0;
      int n_leaf_test = 0;
 
+     // Creating a vector to store the min and the maximum numcut used
+     arma::vec min_numcut;
+     arma::vec max_numcut;
+     arma::vec x_min;
+     arma::vec x_max;
 
      // Creating the methods
      void addingLeaves(modelParam& data);
@@ -110,6 +117,7 @@ struct Node {
      void change(Node* tree, modelParam &data, arma::vec&curr_res);
 
      void nodeLogLike(modelParam &data, arma::vec &curr_res);
+     void updateResiduals(modelParam& data, arma::vec &curr_res);
      void displayCurrNode();
 
      Node(modelParam &data);

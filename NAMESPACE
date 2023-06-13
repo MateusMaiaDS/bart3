@@ -3,4 +3,4 @@
 export(bart2)
 export(k_fold)
 importFrom(Rcpp,sourceCpp)
-useDynLib(bart2)
+useDynLib(bart3)
