@@ -9,105 +9,11 @@ using namespace std;
 // Statistics Function
 // =====================================
 
-arma::mat rotate_operator(){
-
-        arma::vec theta_vec_ = arma::linspace(0.0,M_PI,20);
-        double theta_ = theta_vec_(arma::randi(arma::distr_param(0,(theta_vec_.size()-1))));
-
-        // double theta_ = arma::randu(arma::distr_param(0.0,M_PI)); // Uniform grid
-        double sin_ = std::sin(theta_);
-        double cos_ = std::cos(theta_);
-
-        arma::mat rot_mat_ = arma::mat(2,2);
-        rot_mat_(0,0) = cos_;
-        rot_mat_(0,1) = -sin_;
-        rot_mat_(0,1) = sin_;
-        rot_mat_(1,1) = cos_;
-
-        return  rot_mat_;
-}
-
-void printMatrix(const arma::mat& M) {
-        int rows = M.n_rows;
-        int cols = M.n_cols;
-
-        std::cout << "Matrix:\n";
-        std::cout << std::fixed << std::setprecision(5);
-
-        int max_rows = std::min(rows, 5);
-        int max_cols = std::min(cols, 5);
-
-        for (int i = 0; i < max_rows; i++) {
-                for (int j = 0; j < max_cols; j++) {
-                        std::cout << std::setw(10) << M(i, j) << " ";
-                }
-                std::cout << "\n";
-        }
-}
 
 
-// [[Rcpp::export]]
-double gamma_pdf(double x, double a, double b) {
-
-        double gamma_fun = tgamma(a);
-        if(isinf(gamma_fun)){
-                return 0.0;
-        } else {
-                return (pow(x, a-1) * exp(-x*b)*pow(b,a)) / ( gamma_fun);
-        }
 
 
-}
 
-// [[Rcpp::export]]
-double r_gamma_pdf(double x, double a, double b) {
-
-        return R::dgamma(x,a,1/b,false);
-
-}
-
-// [[Rcpp::export]]
-void print_mat_subset(arma::mat X) {
-        int n_rows = X.n_rows;
-        int n_cols = X.n_cols;
-
-        // print the first 5 rows and 5 columns
-        for (int i = 0; i < n_rows; i++) {
-                if (i >= 5) break; // only print first 5 rows
-                for (int j = 0; j < n_cols; j++) {
-                        if (j >= 5) break; // only print first 5 columns
-                        Rcpp::Rcout << std::setw(10) << X(i, j) << " ";
-                }
-                Rcpp::Rcout << std::endl;
-        }
-}
-
-
-// Calculating the log-density of a MVN(0, Sigma)
-//[[Rcpp::export]]
-double log_dmvn(arma::vec& x, arma::mat& Sigma){
-
-        arma::mat L = arma::chol(Sigma ,"lower"); // Remove diagonal later
-        arma::vec D = L.diag();
-        double p = Sigma.n_cols;
-
-        arma::vec z(p);
-        double out;
-        double acc;
-
-        for(int ip=0;ip<p;ip++){
-                acc = 0.0;
-                for(int ii = 0; ii < ip; ii++){
-                        acc += z(ii)*L(ip,ii);
-                }
-                z(ip) = (x(ip)-acc)/D(ip);
-        }
-        out = (-0.5*sum(square(z))-( (p/2.0)*log(2.0*M_PI) +sum(log(D)) ));
-
-
-        return out;
-
-};
 
 // //[[Rcpp::export]]
 arma::mat sum_exclude_col(arma::mat mat, int exclude_int){
@@ -970,7 +876,6 @@ void Node::updateResiduals(modelParam& data, arma::vec &curr_res){
         // Train elements
         for(int i = 0; i < n_leaf;i++){
                 r_sum = r_sum + curr_res(train_index[i]);
-                r_sq_sum = r_sq_sum + curr_res(train_index[i])*curr_res(train_index[i]);
         }
 
         return;
@@ -979,11 +884,12 @@ void Node::updateResiduals(modelParam& data, arma::vec &curr_res){
 
 void Node::nodeLogLike(modelParam& data, arma::vec &curr_res){
         // Getting the log-likelihood;
-        log_likelihood = -0.5*data.tau*r_sq_sum - 0.5*log(data.tau_mu + (n_leaf*data.tau)) + (0.5*(data.tau*data.tau)*(r_sum*r_sum))/( (data.tau*n_leaf)+data.tau_mu);
+        // log_likelihood = -0.5*data.tau*r_sq_sum - 0.5*log(data.tau_mu + (n_leaf*data.tau)) + (0.5*(data.tau*data.tau)*(r_sum*r_sum))/( (data.tau*n_leaf)+data.tau_mu);
+        log_likelihood = - 0.5*log(data.tau_mu + (n_leaf*data.tau)) + (0.5*(data.tau*data.tau)*(r_sum*r_sum))/( (data.tau*n_leaf)+data.tau_mu);
         return;
 }
 
-// UPDATING MU ( NOT NECESSARY)
+// UPDATING MU
 void updateMu(Node* tree, modelParam &data){
 
         // Getting the terminal nodes
@@ -1265,99 +1171,6 @@ Rcpp::List cppbart(arma::mat x_train,
                                   data.move_acceptance,// [6]
                                   all_tau_post // [7]
                                 );
-}
-
-
-//[[Rcpp::export]]
-arma::mat mat_init(int n){
-        arma::mat A(n,1,arma::fill::ones);
-        return A + 4.0;
-}
-
-
-//[[Rcpp::export]]
-arma::vec vec_init(int n){
-        arma::vec A(n);
-        return A+3.0;
-}
-
-
-// Comparing matrix inversions in armadillo
-//[[Rcpp::export]]
-arma::mat std_inv(arma::mat A, arma::vec diag){
-
-        arma::mat diag_aux = arma::diagmat(diag);
-        return arma::inv(A.t()*A+diag_aux);
-}
-
-//[[Rcpp::export]]
-arma::mat std_pinv(arma::mat A, arma::vec diag){
-
-        arma::mat diag_aux = arma::diagmat(diag);
-        return arma::inv_sympd(A.t()*A+diag_aux);
-}
-
-//[[Rcpp::export]]
-arma::mat faster_simple_std_inv(arma::mat A, arma::vec diag){
-        arma::mat diag_aux = arma::diagmat(diag);
-        arma::mat L = chol(A.t()*A+diag_aux,"lower");
-        return arma::inv(L.t()*L);
-}
-
-//[[Rcpp::export]]
-double log_test(double a){
-
-        return log(a);
-}
-
-
-//[[Rcpp::export]]
-arma::mat faster_std_inv(arma::mat A, arma::vec diag){
-        arma::mat ADinvAt = A.t()*arma::diagmat(1.0/diag)*A;
-        arma::mat L = arma::chol(ADinvAt + arma::eye(ADinvAt.n_cols,ADinvAt.n_cols),"lower");
-        arma::mat invsqrtDA = arma::solve(A.t()/arma::diagmat(arma::sqrt(diag)),L.t());
-        arma::mat Ainv = invsqrtDA *invsqrtDA.t()/(ADinvAt + arma::eye(ADinvAt.n_cols,ADinvAt.n_cols));
-        return Ainv;
-}
-
-
-//[[Rcpp::export]]
-arma::vec rMVN2(const arma::vec& b, const arma::mat& Q)
-{
-        arma::mat Q_inv = arma::inv(Q);
-        arma::mat U = arma::chol(Q_inv, "lower");
-        arma::vec z= arma::randn<arma::mat>(Q.n_cols);
-
-        return arma::solve(U.t(), arma::solve(U, z, arma::solve_opts::no_approx), arma::solve_opts::no_approx) + b;
-}
-
-
-
-
-
-//[[Rcpp::export]]
-arma::vec rMVNslow(const arma::vec& b, const arma::mat& Q){
-
-        // cout << "Error sample BETA" << endl;
-        arma::vec sample = arma::randn<arma::mat>(Q.n_cols);
-        return arma::chol(Q,"lower")*sample + b;
-
-}
-
-//[[Rcpp::export]]
-arma::mat matrix_mat(arma::cube array){
-        return array.slice(1).t()*array.slice(2);
-}
-
-
-
-void test(int n){
-
-        arma::vec test = arma::shuffle(arma::regspace(0,1,n));
-        for(int i = 0; i< test.size(); i++){
-                cout << test(i)<< endl;
-        }
-        return;
 }
 
 
